@@ -24,8 +24,12 @@ ENV PATH=/opt/$TOOLCHAIN_LONGVER/bin:$PATH
 
 # install python tools
 
-RUN pip3 install click pyblake2 scons
-RUN pip3 install --no-deps git+https://github.com/trezor/python-trezor.git@master
+RUN pip3 install scons==3.0.1
+RUN pip3 install flake8==3.5.0
+RUN pip3 install pytest==3.4.2
+RUN pip3 install ecdsa==0.13 mnemonic==0.18 requests
+RUN pip3 install click==6.7 pyblake2==1.1.0 rlp==0.6.0
+RUN pip3 install --no-deps trezor==0.9.1
 
 # workarounds for weird default install
 
