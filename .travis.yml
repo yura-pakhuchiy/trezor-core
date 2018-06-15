@@ -8,7 +8,7 @@ compiler:
 
 env:
   - GOAL=stm32 TOOLCHAIN_SHORTVER=7-2017q4 TOOLCHAIN_LONGVER=gcc-arm-none-eabi-7-2017-q4-major
-  - GOAL=unix
+  # - GOAL=unix
   - GOAL=src
 
 matrix:
@@ -32,12 +32,12 @@ before_install:
     - pip3 install --user --upgrade pip setuptools wheel
 
 install:
-    - pip3 install --user scons
-    - pip3 install --user flake8
-    - pip3 install --user pytest
-    - pip3 install --user ecdsa mnemonic requests
-    - pip3 install --user click pyblake2 rlp
-    - pip3 install --user --no-deps git+https://github.com/trezor/python-trezor@master
+    - pip3 install --user scons==3.0.1
+    - pip3 install --user flake8==3.5.0
+    - pip3 install --user pytest==3.4.2
+    - pip3 install --user ecdsa==0.13 mnemonic==0.18 requests
+    - pip3 install --user click==6.7 pyblake2==1.1.0 rlp==0.6.0
+    - pip3 install --user --no-deps trezor==0.9.1
 
 before_script:
     - test "$GOAL" != "stm32" || wget https://developer.arm.com/-/media/Files/downloads/gnu-rm/$TOOLCHAIN_SHORTVER/$TOOLCHAIN_LONGVER-linux.tar.bz2
