@@ -7,6 +7,7 @@ TAG=${1:-2.0.6-zcoin}
 docker build -t $IMAGE .
 
 docker run -t -v $(pwd)/build-docker:/build:z $IMAGE /bin/sh -c "\
+	pip3 freeze && \
 	git clone https://github.com/yura-pakhuchiy/trezor-core && \
 	cd trezor-core && \
 	ln -s /build build &&
