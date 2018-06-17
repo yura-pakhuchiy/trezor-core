@@ -1,110 +1,133 @@
-import boot  # noqa: F401
+#
+# 2048 Game ported to TREZOR Core by Pavol Rusnak (stick@satoshilabs.com)
+#
+# inspired by https://github.com/gabrielecirulli/2048
+#
 
-from trezor import io
-from trezor import log
+
+from trezor import ui
 from trezor import loop
-from trezor import utils
-from trezor import wire
 from trezor import workflow
+from trezor.crypto import random
+from trezor.ui.swipe import Swipe, SWIPE_DOWN, SWIPE_UP, SWIPE_LEFT
 
-from apps.common.storage import get_device_id
+color_bg = ui.rgb(0xbb, 0xad, 0xa0)
+color_empty = ui.rgb(0xcc, 0xc0, 0xb3)
+color_fg1 = ui.rgb(0x77, 0x6e, 0x65)
+color_fg2 = ui.rgb(0xf9, 0xf6, 0xf2)
+color_lose_fg = ui.rgb(0xff, 0xff, 0xff)
+color_lose_bg = ui.rgb(0xff, 0x00, 0x00)
+color_win_fg = ui.rgb(0xff, 0xff, 0xff)
+color_win_bg = ui.rgb(0x00, 0xff, 0x00)
+color = {}
+color[2] = ui.rgb(0xee, 0xe4, 0xda), color_fg1
+color[4] = ui.rgb(0xed, 0xe0, 0xc8), color_fg1
+color[8] = ui.rgb(0xf2, 0xb1, 0x79), color_fg2
+color[16] = ui.rgb(0xf5, 0x95, 0x63), color_fg2
+color[32] = ui.rgb(0xf6, 0x7c, 0x5f), color_fg2
+color[64] = ui.rgb(0xf6, 0x5e, 0x3b), color_fg2
+color[128] = ui.rgb(0xed, 0xcf, 0x72), color_fg2
+color[256] = ui.rgb(0xed, 0xcc, 0x61), color_fg2
+color[512] = ui.rgb(0xed, 0xc8, 0x50), color_fg2
+color[1024] = ui.rgb(0xed, 0xc5, 0x3f), color_fg2
+color[2048] = ui.rgb(0xed, 0xc2, 0x2e), color_fg2
 
-log.level = log.DEBUG
 
-# initialize the USB stack
+class State():
 
-usb_wire = io.WebUSB(
-    iface_num=0,
-    ep_in=0x81,
-    ep_out=0x01,
-)
+    def __init__(self):
+        self.m = [[0 for _ in range(4)] for _ in range(4)]
+        self.add_new()
+        self.add_new()
 
-if __debug__:
-    usb_debug = io.WebUSB(
-        iface_num=1,
-        ep_in=0x82,
-        ep_out=0x02,
-    )
-    usb_vcp = io.VCP(
-        iface_num=2,
-        data_iface_num=3,
-        ep_in=0x83,
-        ep_out=0x03,
-        ep_cmd=0x84,
-    )
-else:
-    usb_u2f = io.HID(
-        iface_num=1,
-        ep_in=0x82,
-        ep_out=0x02,
-        report_desc=bytes([
-            0x06, 0xd0, 0xf1,  # USAGE_PAGE (FIDO Alliance)
-            0x09, 0x01,        # USAGE (U2F HID Authenticator Device)
-            0xa1, 0x01,        # COLLECTION (Application)
-            0x09, 0x20,        # USAGE (Input Report Data)
-            0x15, 0x00,        # LOGICAL_MINIMUM (0)
-            0x26, 0xff, 0x00,  # LOGICAL_MAXIMUM (255)
-            0x75, 0x08,        # REPORT_SIZE (8)
-            0x95, 0x40,        # REPORT_COUNT (64)
-            0x81, 0x02,        # INPUT (Data,Var,Abs)
-            0x09, 0x21,        # USAGE (Output Report Data)
-            0x15, 0x00,        # LOGICAL_MINIMUM (0)
-            0x26, 0xff, 0x00,  # LOGICAL_MAXIMUM (255)
-            0x75, 0x08,        # REPORT_SIZE (8)
-            0x95, 0x40,        # REPORT_COUNT (64)
-            0x91, 0x02,        # OUTPUT (Data,Var,Abs)
-            0xc0,              # END_COLLECTION
-        ]),
-    )
+    def add_new(self):
+        while True:
+            i, j = random.uniform(4), random.uniform(4)
+            if self.m[i][j] == 0:
+                self.m[i][j] = 2
+                break
 
-usb = io.USB(
-    vendor_id=0x1209,
-    product_id=0x53C1,
-    release_num=0x0200,
-    manufacturer="SatoshiLabs",
-    product="TREZOR",
-    serial_number=get_device_id(),
-    interface="TREZOR Interface",
-)
+    def render(self):
+        if 0 not in self.m[0] and 0 not in self.m[1] and 0 not in self.m[2] and 0 not in self.m[3]:
+            d.bar(0, 0, 240, 240, color_lose_bg)
+            d.text_center(120, 128, "YOU LOSE!", ui.BOLD, color_lose_fg, color_lose_bg)
+        elif 2048 in self.m[0] or 2048 in self.m[1] or 2048 in self.m[2] or 2048 in self.m[3]:
+            d.bar(0, 0, 240, 240, color_win_bg)
+            d.text_center(120, 128, "YOU WIN!", ui.BOLD, color_win_fg, color_win_bg)
+        else:
+            for i in range(4):
+                for j in range(4):
+                    if not self.m[i][j]:
+                        d.bar_radius(8 + i * 58, 8 + j * 58, 50, 50, color_empty, color_bg, 2)
+                    else:
+                        v = self.m[i][j]
+                        cb, cf = color[v]
+                        d.bar_radius(8 + i * 58, 8 + j * 58, 50, 50, cb, color_bg, 2)
+                        d.text_center(8 + i * 58 + 25, 8 + j * 58 + 33, str(v), ui.BOLD, cf, cb)
+        d.backlight(ui.BACKLIGHT_NORMAL)
+        d.refresh()
 
-usb.add(usb_wire)
-if __debug__:
-    usb.add(usb_debug)
-    usb.add(usb_vcp)
-else:
-    usb.add(usb_u2f)
+    def update(self, dir):
+        for _ in range(4):
+            self.compact(dir)
 
-# load applications
-from apps import homescreen
-from apps import management
-from apps import wallet
-from apps import ethereum
-if __debug__:
-    from apps import debug
-else:
-    from apps import fido_u2f
+    def compact(self, dir):
+        if dir == SWIPE_DOWN:
+            for i in range(4):
+                for j in [2, 1, 0]:
+                    if self.m[i][j] == self.m[i][j + 1]:
+                        self.m[i][j + 1] = self.m[i][j] * 2
+                        self.m[i][j] = 0
+                    elif 0 == self.m[i][j + 1]:
+                        self.m[i][j + 1] = self.m[i][j]
+                        self.m[i][j] = 0
+        elif dir == SWIPE_UP:
+            for i in range(4):
+                for j in [1, 2, 3]:
+                    if self.m[i][j] == self.m[i][j - 1]:
+                        self.m[i][j - 1] = self.m[i][j] * 2
+                        self.m[i][j] = 0
+                    elif 0 == self.m[i][j - 1]:
+                        self.m[i][j - 1] = self.m[i][j]
+                        self.m[i][j] = 0
+        elif dir == SWIPE_LEFT:
+            for j in range(4):
+                for i in [1, 2, 3]:
+                    if self.m[i][j] == self.m[i - 1][j]:
+                        self.m[i - 1][j] = self.m[i][j] * 2
+                        self.m[i][j] = 0
+                    elif 0 == self.m[i - 1][j]:
+                        self.m[i - 1][j] = self.m[i][j]
+                        self.m[i][j] = 0
+        else:  # SWIPE_RIGHT
+            for j in range(4):
+                for i in [2, 1, 0]:
+                    if self.m[i][j] == self.m[i + 1][j]:
+                        self.m[i + 1][j] = self.m[i][j] * 2
+                        self.m[i][j] = 0
+                    elif 0 == self.m[i + 1][j]:
+                        self.m[i + 1][j] = self.m[i][j]
+                        self.m[i][j] = 0
 
-# boot applications
-homescreen.boot()
-management.boot()
-wallet.boot()
-ethereum.boot()
-if __debug__:
-    debug.boot()
-else:
-    fido_u2f.boot(usb_u2f)
 
-# initialize the wire codec and start the USB
-wire.setup(usb_wire)
-if __debug__:
-    wire.setup(usb_debug)
-usb.open()
+d = ui.Display()
+d.backlight(ui.BACKLIGHT_NORMAL)
+d.bar(0, 0, 240, 240, color_bg)
 
-utils.set_mode_unprivileged()
+s = State()
 
-# load default homescreen
-from apps.homescreen.homescreen import homescreen
 
-# run main even loop and specify which screen is default
-workflow.startdefault(homescreen)
+async def swipe_move():
+    swipe = await Swipe(absolute=True)
+    s.update(swipe)
+    s.add_new()
+
+
+async def layout_game():
+    while True:
+        s.render()
+        await loop.wait(swipe_move())
+
+
+workflow.startdefault(layout_game)
 loop.run()
