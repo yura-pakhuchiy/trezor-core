@@ -2,7 +2,7 @@
 set -e
 
 IMAGE=trezor-core-build
-TAG=${1:-2.0.6-zcoin}
+TAG=${1:-load_device}
 
 docker build -t $IMAGE .
 

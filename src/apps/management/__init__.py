@@ -59,9 +59,7 @@ def dispatch_SetU2FCounter(*args, **kwargs):
 
 
 def boot():
-    # only enable LoadDevice in debug builds
-    if __debug__:
-        register(LoadDevice, protobuf_workflow, dispatch_LoadDevice)
+    register(LoadDevice, protobuf_workflow, dispatch_LoadDevice)
     register(ResetDevice, protobuf_workflow, dispatch_ResetDevice)
     register(BackupDevice, protobuf_workflow, dispatch_BackupDevice)
     register(WipeDevice, protobuf_workflow, dispatch_WipeDevice)
